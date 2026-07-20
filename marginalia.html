@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marginalia — Notes worth keeping</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%233C6E5E' stroke='%23A9803D' stroke-width='2'/%3E%3Cpath d='M22,20 L22,44 M22,20 L32,32 L42,20 M42,20 L42,44' fill='none' stroke='%23F1EDE3' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#E7E2D6;
+    --paper-alt:#DCD5C4;
+    --paper-card:#F1EDE3;
+    --ink:#1E2A32;
+    --ink-soft:#5B6A72;
+    --ink-faint:#8B958E;
+    --rule:#C9C1AE;
+    --verdigris:#3C6E5E;
+    --verdigris-dark:#2B5347;
+    --brass:#A9803D;
+    --danger:#8C4536;
+    --shadow: 0 1px 2px rgba(30,42,50,0.06), 0 4px 14px rgba(30,42,50,0.07);
+    --radius: 3px;
+  }
+  [data-theme="night"]{
+    --paper:#171F26;
+    --paper-alt:#1D2731;
+    --paper-card:#212C36;
+    --ink:#E7E2D6;
+    --ink-soft:#AEB8B2;
+    --ink-faint:#6E7A76;
+    --rule:#324049;
+    --verdigris:#5E9986;
+    --verdigris-dark:#4A7E6D;
+    --brass:#C9A15C;
+    --danger:#C1705B;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    transition:background .25s ease, color .25s ease;
+  }
+  ::selection{ background:var(--brass); color:#20140a; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,textarea{ font-family:inherit; }
+
+  /* ---------- Loading / Setup ---------- */
+  #boot{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--paper); z-index:999; flex-direction:column; gap:14px;
+  }
+  .seal{
+    width:96px;height:96px; display:block; flex-shrink:0;
+    filter: drop-shadow(0 2px 6px rgba(30,42,50,0.18));
+  }
+  .seal svg{ display:block; width:100%; height:100%; }
+  #boot p{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); letter-spacing:.04em; }
+
+  #setup{
+    position:fixed; inset:0; background:rgba(20,26,30,0.55); z-index:998;
+    display:none; align-items:center; justify-content:center; padding:24px;
+  }
+  #setup .box{
+    background:var(--paper-card); max-width:560px; width:100%; border-radius:6px;
+    padding:32px; box-shadow:var(--shadow); border:1px solid var(--rule);
+    max-height:86vh; overflow:auto;
+  }
+  #setup h2{ font-family:'Fraunces',serif; margin-top:0; font-size:22px; }
+  #setup code{ background:var(--paper-alt); padding:2px 6px; border-radius:3px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
+  #setup pre{ background:var(--paper-alt); padding:12px 14px; border-radius:4px; overflow:auto; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6; }
+  #setup ol{ padding-left:20px; line-height:1.7; }
+  #setup .close-setup{
+    margin-top:10px; background:var(--verdigris); color:var(--paper-card);
+    border:none; padding:10px 18px; border-radius:4px; font-weight:600; font-size:13.5px;
+  }
+
+  /* ---------- Layout ---------- */
+  #app{ display:none; height:100vh; }
+  .shell{ display:flex; height:100%; }
+
+  /* Sidebar */
+  .sidebar{
+    width:320px; min-width:320px; background:var(--paper-alt);
+    border-right:1px solid var(--rule); display:flex; flex-direction:column;
+    transition: margin-left .25s ease;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px; padding:18px 18px 14px;
+    border-bottom:1px solid var(--rule);
+  }
+  .brand .seal{ width:44px;height:44px; }
+  .brand-text .name{ font-family:'Fraunces',serif; font-size:18px; font-weight:600; line-height:1.1; }
+  .brand-text .tag{ font-size:10.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; letter-spacing:.03em; }
+
+  .toolbar{ padding:14px 16px 8px; display:flex; flex-direction:column; gap:10px; }
+  .search-wrap{ position:relative; }
+  .search-wrap input{
+    width:100%; padding:9px 12px 9px 32px; border:1px solid var(--rule); border-radius:4px;
+    background:var(--paper-card); color:var(--ink); font-size:13.5px; outline:none;
+  }
+  .search-wrap input:focus{ border-color:var(--verdigris); }
+  .search-wrap .icon{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--ink-faint); font-size:13px; }
+
+  .new-note-btn{
+    background:var(--verdigris); color:var(--paper-card); border:none; border-radius:4px;
+    padding:10px 14px; font-weight:600; font-size:13.5px; display:flex; align-items:center; gap:8px; justify-content:center;
+  }
+  .new-note-btn:hover{ background:var(--verdigris-dark); }
+
+  .filters{ display:flex; gap:6px; padding:6px 16px 10px; flex-wrap:wrap; }
+  .filter-chip{
+    border:1px solid var(--rule); background:transparent; color:var(--ink-soft);
+    padding:5px 10px; border-radius:20px; font-size:11.5px; letter-spacing:.02em;
+  }
+  .filter-chip.active{ background:var(--verdigris); color:var(--paper-card); border-color:var(--verdigris); }
+
+  .note-list{ flex:1; overflow-y:auto; padding:4px 12px 16px; }
+  .note-card{
+    background:var(--paper-card); border:1px solid var(--rule); border-top:3px solid var(--rule);
+    border-radius:3px; padding:12px 12px 10px; margin-bottom:10px; cursor:pointer;
+    position:relative; transition: border-color .15s ease, transform .1s ease;
+  }
+  .note-card:hover{ border-color:var(--verdigris); }
+  .note-card.selected{ border-color:var(--verdigris); box-shadow: inset 3px 0 0 var(--verdigris); }
+  .note-card .pin-dot{
+    position:absolute; top:-6px; right:10px; width:12px; height:12px; border-radius:50%;
+    background:var(--brass); border:2px solid var(--paper-alt); display:none;
+  }
+  .note-card.pinned .pin-dot{ display:block; }
+  .note-card h4{ margin:0 0 4px; font-family:'Fraunces',serif; font-size:15px; font-weight:600; color:var(--ink); }
+  .note-card p{ margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.4; max-height:34px; overflow:hidden; }
+  .note-card .meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+  .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); }
+  .note-card .tags{ display:flex; gap:4px; flex-wrap:wrap; }
+  .note-card .tag-pill{ font-size:9.5px; padding:1px 6px; border-radius:8px; background:var(--paper-alt); color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+  .empty-list{ padding:40px 16px; text-align:center; color:var(--ink-faint); font-size:12.5px; }
+
+  .sidebar-footer{
+    border-top:1px solid var(--rule); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .account-btn{ background:none; border:1px solid var(--rule); border-radius:4px; padding:7px 10px; font-size:11.5px; color:var(--ink-soft); }
+  .account-btn:hover{ border-color:var(--verdigris); color:var(--verdigris); }
+  .theme-toggle{ background:none; border:1px solid var(--rule); border-radius:4px; width:32px; height:32px; font-size:14px; }
+
+  /* Main editor */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+  .editor-top{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 28px;
+    border-bottom:1px solid var(--rule); gap:10px; flex-wrap:wrap;
+  }
+  .left-controls{ display:flex; align-items:center; gap:10px; }
+  .menu-toggle{ display:none; background:none; border:1px solid var(--rule); border-radius:4px; width:32px; height:32px; }
+  .swatches{ display:flex; gap:6px; }
+  .swatch{ width:18px;height:18px; border-radius:50%; border:2px solid transparent; cursor:pointer; }
+  .swatch.active{ border-color:var(--ink); }
+  .icon-btn{
+    background:none; border:1px solid var(--rule); border-radius:4px; padding:7px 11px; font-size:12px; color:var(--ink-soft);
+    display:flex; align-items:center; gap:6px;
+  }
+  .icon-btn:hover{ border-color:var(--verdigris); color:var(--verdigris); }
+  .icon-btn.danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .icon-btn.active-pin{ background:var(--brass); color:#2a1c07; border-color:var(--brass); }
+
+  .editor-body{ flex:1; overflow-y:auto; padding:30px 40px 60px; }
+  .editor-inner{ max-width:760px; margin:0 auto; }
+  #titleInput{
+    width:100%; border:none; background:transparent; outline:none; color:var(--ink);
+    font-family:'Fraunces',serif; font-size:32px; font-weight:600; margin-bottom:6px;
+  }
+  #titleInput::placeholder{ color:var(--ink-faint); }
+  .tag-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
+  .tag-pill-edit{ display:flex; align-items:center; gap:5px; background:var(--paper-alt); padding:3px 8px 3px 10px; border-radius:12px; font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); }
+  .tag-pill-edit button{ background:none; border:none; color:var(--ink-faint); font-size:13px; line-height:1; }
+  #tagInput{ border:none; background:transparent; outline:none; font-size:12px; color:var(--ink-soft); min-width:110px; font-family:'IBM Plex Mono',monospace; }
+
+  .ruled{
+    background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--rule) 32px);
+    border-radius:2px;
+  }
+  #bodyInput{
+    width:100%; min-height:52vh; border:none; outline:none; background:transparent; resize:vertical;
+    color:var(--ink); font-size:15.5px; line-height:32px; font-family:'IBM Plex Sans', sans-serif;
+    padding-top:2px;
+  }
+  #bodyInput::placeholder{ color:var(--ink-faint); }
+
+  .editor-bottom{
+    display:flex; justify-content:space-between; align-items:center; padding:10px 28px;
+    border-top:1px solid var(--rule); font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint);
+  }
+  .save-state{ display:flex; align-items:center; gap:6px; }
+  .save-dot{ width:6px;height:6px;border-radius:50%; background:var(--ink-faint); }
+  .save-dot.saved{ background:var(--verdigris); }
+  .save-dot.saving{ background:var(--brass); }
+
+  .empty-editor{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--ink-faint);
+    text-align:center; padding:40px;
+  }
+  .empty-editor .seal{ opacity:.55; width:84px; height:84px; }
+  .empty-editor h3{ font-family:'Fraunces',serif; color:var(--ink-soft); font-weight:500; margin:0; }
+  .empty-editor p{ font-size:13px; max-width:320px; margin:0; }
+
+  /* Auth modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,26,30,0.5); display:none; align-items:center; justify-content:center; z-index:500; padding:20px;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal{ background:var(--paper-card); border-radius:6px; padding:28px; width:100%; max-width:380px; box-shadow:var(--shadow); border:1px solid var(--rule); }
+  .modal h3{ font-family:'Fraunces',serif; margin:0 0 4px; font-size:20px; }
+  .modal p.sub{ font-size:12.5px; color:var(--ink-soft); margin:0 0 18px; }
+  .modal label{ font-size:11.5px; color:var(--ink-soft); display:block; margin-bottom:4px; font-family:'IBM Plex Mono',monospace; }
+  .modal input{ width:100%; padding:9px 11px; border:1px solid var(--rule); border-radius:4px; background:var(--paper); color:var(--ink); margin-bottom:14px; font-size:13.5px; outline:none; }
+  .modal input:focus{ border-color:var(--verdigris); }
+  .modal .btn-primary{ width:100%; background:var(--verdigris); color:var(--paper-card); border:none; padding:11px; border-radius:4px; font-weight:600; font-size:13.5px; }
+  .modal .btn-primary:hover{ background:var(--verdigris-dark); }
+  .modal .switch-mode{ text-align:center; margin-top:14px; font-size:12px; color:var(--ink-soft); }
+  .modal .switch-mode a{ color:var(--verdigris); cursor:pointer; text-decoration:underline; }
+  .modal .err{ color:var(--danger); font-size:12px; margin:-6px 0 12px; min-height:14px; }
+  .modal .divider{ text-align:center; font-size:11px; color:var(--ink-faint); margin:12px 0; }
+  .modal .anon-note{ font-size:11px; color:var(--ink-faint); margin-top:16px; line-height:1.5; text-align:center; }
+
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:var(--paper);
+    padding:10px 18px; border-radius:5px; font-size:12.5px; opacity:0; transition:.25s ease; z-index:600; pointer-events:none;
+  }
+  [data-theme="night"] .toast{ background:var(--paper-card); color:var(--ink); border:1px solid var(--rule); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width: 860px){
+    .sidebar{ position:fixed; z-index:400; height:100%; margin-left:-320px; box-shadow:var(--shadow); }
+    .sidebar.open{ margin-left:0; }
+    .menu-toggle{ display:inline-flex; align-items:center; justify-content:center; }
+    .editor-body{ padding:22px 18px 60px; }
+    .editor-top{ padding:12px 16px; }
+  }
+</style>
+</head>
+<body data-theme="day">
+
+<div id="boot">
+  <div class="seal">
+    <svg viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Marginalia seal">
+      <circle cx="340" cy="200" r="155" fill="none" stroke="#A9803D" stroke-width="2"/>
+      <circle cx="340" cy="200" r="148" fill="none" stroke="#A9803D" stroke-width="0.75" opacity="0.6"/>
+      <g stroke="#A9803D" stroke-width="1.5" opacity="0.85">
+        <line x1="472" y1="200" x2="485" y2="200"/><line x1="462" y1="250.5" x2="474" y2="255.5"/>
+        <line x1="433.3" y1="293.3" x2="442.5" y2="302.5"/><line x1="390.5" y1="322" x2="395.5" y2="334"/>
+        <line x1="340" y1="332" x2="340" y2="345"/><line x1="289.5" y1="322" x2="284.5" y2="334"/>
+        <line x1="246.7" y1="293.3" x2="237.5" y2="302.5"/><line x1="218" y1="250.5" x2="206" y2="255.5"/>
+        <line x1="208" y1="200" x2="195" y2="200"/><line x1="218" y1="149.5" x2="206" y2="144.5"/>
+        <line x1="246.7" y1="106.7" x2="237.5" y2="97.5"/><line x1="289.5" y1="78" x2="284.5" y2="66"/>
+        <line x1="340" y1="68" x2="340" y2="55"/><line x1="390.5" y1="78" x2="395.5" y2="66"/>
+        <line x1="433.3" y1="106.7" x2="442.5" y2="97.5"/><line x1="462" y1="149.5" x2="474" y2="144.5"/>
+      </g>
+      <circle cx="340" cy="200" r="128" fill="#3C6E5E" stroke="#A9803D" stroke-width="4"/>
+      <circle cx="340" cy="200" r="118" fill="none" stroke="#E4C98C" stroke-width="1" opacity="0.35"/>
+      <path id="arcTopBoot" d="M 220,200 A 120,120 0 1 1 460,200" fill="none"/>
+      <text font-size="16" letter-spacing="7" fill="#E4C98C" font-family="'Fraunces',serif" opacity="0.95"><textPath href="#arcTopBoot" startOffset="50%" text-anchor="middle">MARGINALIA</textPath></text>
+      <path d="M295,155 L295,245 M295,155 L340,208 L385,155 M385,155 L385,245" fill="none" stroke="#F1EDE3" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="295" y1="162" x2="295" y2="238" stroke="#1E2A32" stroke-width="1.2" opacity="0.5"/>
+      <circle cx="340" cy="258" r="5" fill="#E4C98C"/>
+    </svg>
+  </div>
+  <p>OPENING THE LEDGER…</p>
+</div>
+
+<!-- First-run setup instructions -->
+<div id="setup">
+  <div class="box">
+    <h2>Connect Marginalia to Firebase</h2>
+    <p style="font-size:13px; color:var(--ink-soft); line-height:1.6;">
+      This copy isn't connected to a Firebase project yet, so notes can't be saved. Open this HTML file in a code editor,
+      find the <code>firebaseConfig</code> object near the bottom of the file, and replace it with your own project's config.
+      Then enable <strong>Firestore Database</strong> and <strong>Authentication → Anonymous + Email/Password</strong> in the
+      Firebase console for that project.
+    </p>
+    <pre>const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "...",
+  appId: "..."
+};</pre>
+    <p style="font-size:12.5px; color:var(--ink-soft);">Recommended Firestore rules (Console → Firestore → Rules):</p>
+    <pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /notes/{noteId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid;
+    }
+  }
+}</pre>
+    <button class="close-setup" onclick="document.getElementById('setup').style.display='none'">I'll set this up later — preview the interface</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="seal">
+          <svg viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Marginalia seal">
+            <circle cx="340" cy="200" r="155" fill="none" stroke="#A9803D" stroke-width="2"/>
+            <circle cx="340" cy="200" r="148" fill="none" stroke="#A9803D" stroke-width="0.75" opacity="0.6"/>
+            <g stroke="#A9803D" stroke-width="1.5" opacity="0.85">
+              <line x1="472" y1="200" x2="485" y2="200"/><line x1="462" y1="250.5" x2="474" y2="255.5"/>
+              <line x1="433.3" y1="293.3" x2="442.5" y2="302.5"/><line x1="390.5" y1="322" x2="395.5" y2="334"/>
+              <line x1="340" y1="332" x2="340" y2="345"/><line x1="289.5" y1="322" x2="284.5" y2="334"/>
+              <line x1="246.7" y1="293.3" x2="237.5" y2="302.5"/><line x1="218" y1="250.5" x2="206" y2="255.5"/>
+              <line x1="208" y1="200" x2="195" y2="200"/><line x1="218" y1="149.5" x2="206" y2="144.5"/>
+              <line x1="246.7" y1="106.7" x2="237.5" y2="97.5"/><line x1="289.5" y1="78" x2="284.5" y2="66"/>
+              <line x1="340" y1="68" x2="340" y2="55"/><line x1="390.5" y1="78" x2="395.5" y2="66"/>
+              <line x1="433.3" y1="106.7" x2="442.5" y2="97.5"/><line x1="462" y1="149.5" x2="474" y2="144.5"/>
+            </g>
+            <circle cx="340" cy="200" r="128" fill="#3C6E5E" stroke="#A9803D" stroke-width="4"/>
+            <circle cx="340" cy="200" r="118" fill="none" stroke="#E4C98C" stroke-width="1" opacity="0.35"/>
+            <path id="arcTopBrand" d="M 220,200 A 120,120 0 1 1 460,200" fill="none"/>
+            <text font-size="16" letter-spacing="7" fill="#E4C98C" font-family="'Fraunces',serif" opacity="0.95"><textPath href="#arcTopBrand" startOffset="50%" text-anchor="middle">MARGINALIA</textPath></text>
+            <path d="M295,155 L295,245 M295,155 L340,208 L385,155 M385,155 L385,245" fill="none" stroke="#F1EDE3" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="295" y1="162" x2="295" y2="238" stroke="#1E2A32" stroke-width="1.2" opacity="0.5"/>
+            <circle cx="340" cy="258" r="5" fill="#E4C98C"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="name">Marginalia</div>
+          <div class="tag">NOTES WORTH KEEPING</div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <span class="icon">⌕</span>
+          <input id="searchInput" placeholder="Search notes… (Ctrl+K)" />
+        </div>
+        <button class="new-note-btn" id="newNoteBtn">＋ New note <span style="opacity:.6;font-size:11px;">Ctrl+N</span></button>
+      </div>
+      <div class="filters" id="filters">
+        <button class="filter-chip active" data-filter="active">All</button>
+        <button class="filter-chip" data-filter="pinned">Pinned</button>
+        <button class="filter-chip" data-filter="archived">Archived</button>
+        <button class="filter-chip" data-filter="trashed">Trash</button>
+      </div>
+      <div class="note-list" id="noteList"></div>
+      <div class="sidebar-footer">
+        <button class="account-btn" id="accountBtn">Guest — sync notes</button>
+        <button class="theme-toggle" id="themeToggle" title="Toggle theme">☾</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="editor-top" id="editorTop" style="display:none;">
+        <div class="left-controls">
+          <button class="menu-toggle" id="menuToggle">☰</button>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="left-controls">
+          <button class="icon-btn" id="pinBtn">☆ Pin</button>
+          <button class="icon-btn" id="archiveBtn">Archive</button>
+          <button class="icon-btn" id="exportBtn">Export .md</button>
+          <button class="icon-btn danger" id="deleteBtn">Delete</button>
+        </div>
+      </div>
+
+      <div class="editor-body" id="editorBody" style="display:none;">
+        <div class="editor-inner">
+          <input id="titleInput" placeholder="Untitled note" />
+          <div class="tag-row" id="tagRow">
+            <input id="tagInput" placeholder="+ add tag, press Enter" />
+          </div>
+          <textarea id="bodyInput" class="ruled" placeholder="Begin writing…"></textarea>
+        </div>
+      </div>
+
+      <div class="editor-bottom" id="editorBottom" style="display:none;">
+        <div class="save-state"><span class="save-dot" id="saveDot"></span><span id="saveText">All changes saved</span></div>
+        <div id="wordCount">0 words</div>
+      </div>
+
+      <div class="empty-editor" id="emptyState">
+        <div class="seal">
+          <svg viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Marginalia seal">
+            <circle cx="340" cy="200" r="155" fill="none" stroke="#A9803D" stroke-width="2"/>
+            <circle cx="340" cy="200" r="148" fill="none" stroke="#A9803D" stroke-width="0.75" opacity="0.6"/>
+            <g stroke="#A9803D" stroke-width="1.5" opacity="0.85">
+              <line x1="472" y1="200" x2="485" y2="200"/><line x1="462" y1="250.5" x2="474" y2="255.5"/>
+              <line x1="433.3" y1="293.3" x2="442.5" y2="302.5"/><line x1="390.5" y1="322" x2="395.5" y2="334"/>
+              <line x1="340" y1="332" x2="340" y2="345"/><line x1="289.5" y1="322" x2="284.5" y2="334"/>
+              <line x1="246.7" y1="293.3" x2="237.5" y2="302.5"/><line x1="218" y1="250.5" x2="206" y2="255.5"/>
+              <line x1="208" y1="200" x2="195" y2="200"/><line x1="218" y1="149.5" x2="206" y2="144.5"/>
+              <line x1="246.7" y1="106.7" x2="237.5" y2="97.5"/><line x1="289.5" y1="78" x2="284.5" y2="66"/>
+              <line x1="340" y1="68" x2="340" y2="55"/><line x1="390.5" y1="78" x2="395.5" y2="66"/>
+              <line x1="433.3" y1="106.7" x2="442.5" y2="97.5"/><line x1="462" y1="149.5" x2="474" y2="144.5"/>
+            </g>
+            <circle cx="340" cy="200" r="128" fill="#3C6E5E" stroke="#A9803D" stroke-width="4"/>
+            <circle cx="340" cy="200" r="118" fill="none" stroke="#E4C98C" stroke-width="1" opacity="0.35"/>
+            <path id="arcTopEmpty" d="M 220,200 A 120,120 0 1 1 460,200" fill="none"/>
+            <text font-size="16" letter-spacing="7" fill="#E4C98C" font-family="'Fraunces',serif" opacity="0.95"><textPath href="#arcTopEmpty" startOffset="50%" text-anchor="middle">MARGINALIA</textPath></text>
+            <path d="M295,155 L295,245 M295,155 L340,208 L385,155 M385,155 L385,245" fill="none" stroke="#F1EDE3" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="295" y1="162" x2="295" y2="238" stroke="#1E2A32" stroke-width="1.2" opacity="0.5"/>
+            <circle cx="340" cy="258" r="5" fill="#E4C98C"/>
+          </svg>
+        </div>
+        <h3>No note selected</h3>
+        <p>Choose a note from the ledger on the left, or start a new one to begin writing.</p>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Auth modal -->
+<div class="modal-overlay" id="authOverlay">
+  <div class="modal">
+    <h3 id="authTitle">Sync your notes</h3>
+    <p class="sub" id="authSub">Add an email so your notes follow you to any device.</p>
+    <div class="err" id="authErr"></div>
+    <label>Email</label>
+    <input id="authEmail" type="email" placeholder="you@example.com" />
+    <label>Password</label>
+    <input id="authPassword" type="password" placeholder="At least 6 characters" />
+    <button class="btn-primary" id="authSubmit">Create account</button>
+    <div class="switch-mode" id="switchMode">Already have an account? <a id="switchLink">Sign in</a></div>
+    <div class="anon-note">Skip this and your notes stay saved privately to this browser only.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  linkWithCredential, EmailAuthProvider, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, serverTimestamp, Timestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ============ 1. PASTE YOUR OWN FIREBASE CONFIG BELOW ============ */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+/* =================================================================== */
+
+const isPlaceholder = firebaseConfig.apiKey === "YOUR_API_KEY";
+const $ = (id) => document.getElementById(id);
+
+let db, auth, currentUser = null;
+let notes = [];
+let activeNoteId = null;
+let activeFilter = "active";
+let saveTimer = null;
+let unsubscribeNotes = null;
+
+const COLORS = ["#F1EDE3", "#DCE6DE", "#E9DFC9", "#E3D3D0", "#D8DEE6"];
+let pendingColor = COLORS[0];
+
+function showToast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=> t.classList.remove("show"), 2200);
+}
+
+function fmtDate(ts){
+  if(!ts) return "just now";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if(sameDay) return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleDateString([], {month:'short', day:'numeric'});
+}
+
+/* ---------------- Boot ---------------- */
+function boot(){
+  if(isPlaceholder){
+    $("boot").style.display = "none";
+    $("setup").style.display = "flex";
+    $("app").style.display = "block";
+    renderEmptyDemo();
+    return;
+  }
+  const fbApp = initializeApp(firebaseConfig);
+  auth = getAuth(fbApp);
+  db = getFirestore(fbApp);
+
+  onAuthStateChanged(auth, (user) => {
+    if(user){
+      currentUser = user;
+      $("boot").style.display = "none";
+      $("app").style.display = "block";
+      updateAccountBtn();
+      listenToNotes();
+    } else {
+      signInAnonymously(auth).catch((e)=>{
+        console.error(e);
+        $("boot").innerHTML = `<p style="color:var(--danger);max-width:320px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;">Couldn't sign in: ${e.message}. Check that Anonymous auth is enabled in your Firebase console.</p>`;
+      });
+    }
+  });
+}
+
+function renderEmptyDemo(){
+  $("emptyState").querySelector("p").textContent = "Add your Firebase config to start saving real notes. You can still click around to preview the interface.";
+}
+
+function updateAccountBtn(){
+  if(!currentUser) return;
+  $("accountBtn").textContent = currentUser.isAnonymous ? "Guest — sync notes" : (currentUser.email || "Account");
+}
+
+/* ---------------- Firestore listener ---------------- */
+function listenToNotes(){
+  if(unsubscribeNotes) unsubscribeNotes();
+  const q = query(collection(db, "notes"), where("uid", "==", currentUser.uid));
+  unsubscribeNotes = onSnapshot(q, (snap) => {
+    notes = [];
+    snap.forEach(d => notes.push({ id: d.id, ...d.data() }));
+    notes.sort((a,b) => {
+      const at = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+      const bt = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+      return bt - at;
+    });
+    renderList();
+    if(activeNoteId){
+      const still = notes.find(n => n.id === activeNoteId);
+      if(!still) closeEditor();
+    }
+  }, (err) => {
+    console.error(err);
+    showToast("Couldn't load notes — check Firestore rules");
+  });
+}
+
+/* ---------------- Rendering the list ---------------- */
+function matchesFilter(n){
+  if(activeFilter === "pinned") return n.pinned && !n.trashed && !n.archived;
+  if(activeFilter === "archived") return n.archived && !n.trashed;
+  if(activeFilter === "trashed") return !!n.trashed;
+  return !n.trashed && !n.archived;
+}
+
+function renderList(){
+  const term = $("searchInput").value.trim().toLowerCase();
+  let list = notes.filter(matchesFilter);
+  if(term){
+    list = list.filter(n =>
+      (n.title||"").toLowerCase().includes(term) ||
+      (n.body||"").toLowerCase().includes(term) ||
+      (n.tags||[]).some(t => t.toLowerCase().includes(term))
+    );
+  }
+  list.sort((a,b) => (b.pinned?1:0) - (a.pinned?1:0));
+
+  const container = $("noteList");
+  container.innerHTML = "";
+  if(list.length === 0){
+    container.innerHTML = `<div class="empty-list">${activeFilter === "trashed" ? "Trash is empty." : "No notes here yet."}</div>`;
+    return;
+  }
+  list.forEach(n => {
+    const card = document.createElement("div");
+    card.className = "note-card" + (n.pinned ? " pinned" : "") + (n.id === activeNoteId ? " selected" : "");
+    card.style.borderTopColor = n.color || COLORS[0];
+    card.innerHTML = `
+      <div class="pin-dot"></div>
+      <h4>${escapeHtml(n.title || "Untitled note")}</h4>
+      <p>${escapeHtml((n.body||"").slice(0,140)) || "No additional text"}</p>
+      <div class="meta">
+        <div class="tags">${(n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")}</div>
+        <time>${fmtDate(n.updatedAt)}</time>
+      </div>`;
+    card.addEventListener("click", () => openNote(n.id));
+    container.appendChild(card);
+  });
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+/* ---------------- Editor ---------------- */
+let currentTags = [];
+
+function openNote(id){
+  const n = notes.find(x => x.id === id);
+  if(!n) return;
+  activeNoteId = id;
+  $("emptyState").style.display = "none";
+  $("editorTop").style.display = "flex";
+  $("editorBody").style.display = "block";
+  $("editorBottom").style.display = "flex";
+  $("titleInput").value = n.title || "";
+  $("bodyInput").value = n.body || "";
+  currentTags = [...(n.tags || [])];
+  renderTags();
+  pendingColor = n.color || COLORS[0];
+  renderSwatches();
+  $("pinBtn").innerHTML = n.pinned ? "★ Pinned" : "☆ Pin";
+  $("pinBtn").classList.toggle("active-pin", !!n.pinned);
+  $("archiveBtn").textContent = n.archived ? "Unarchive" : "Archive";
+  updateWordCount();
+  setSaveState("saved");
+  renderList();
+  if(window.innerWidth <= 860) $("sidebar").classList.remove("open");
+}
+
+function closeEditor(){
+  activeNoteId = null;
+  $("emptyState").style.display = "flex";
+  $("editorTop").style.display = "none";
+  $("editorBody").style.display = "none";
+  $("editorBottom").style.display = "none";
+}
+
+function renderSwatches(){
+  const wrap = $("swatches");
+  wrap.innerHTML = "";
+  COLORS.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "swatch" + (c === pendingColor ? " active" : "");
+    el.style.background = c;
+    el.addEventListener("click", () => { pendingColor = c; renderSwatches(); scheduleSave(); });
+    wrap.appendChild(el);
+  });
+}
+
+function renderTags(){
+  const row = $("tagRow");
+  row.querySelectorAll(".tag-pill-edit").forEach(e => e.remove());
+  currentTags.forEach((t, i) => {
+    const pill = document.createElement("div");
+    pill.className = "tag-pill-edit";
+    pill.innerHTML = `${escapeHtml(t)} <button data-i="${i}">×</button>`;
+    pill.querySelector("button").addEventListener("click", (e) => {
+      currentTags.splice(parseInt(e.target.dataset.i), 1);
+      renderTags();
+      scheduleSave();
+    });
+    row.insertBefore(pill, $("tagInput"));
+  });
+}
+
+function updateWordCount(){
+  const words = $("bodyInput").value.trim().split(/\s+/).filter(Boolean).length;
+  $("wordCount").textContent = `${words} word${words===1?"":"s"}`;
+}
+
+function setSaveState(state){
+  const dot = $("saveDot");
+  dot.className = "save-dot " + state;
+  $("saveText").textContent = state === "saving" ? "Saving…" : state === "saved" ? "All changes saved" : "Unsaved changes";
+}
+
+function scheduleSave(){
+  if(!activeNoteId) return;
+  setSaveState("dirty");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveActiveNote, 700);
+}
+
+async function saveActiveNote(){
+  if(!activeNoteId || isPlaceholder) return;
+  setSaveState("saving");
+  try{
+    await updateDoc(doc(db, "notes", activeNoteId), {
+      title: $("titleInput").value,
+      body: $("bodyInput").value,
+      tags: currentTags,
+      color: pendingColor,
+      updatedAt: serverTimestamp()
+    });
+    setSaveState("saved");
+  }catch(e){
+    console.error(e);
+    showToast("Couldn't save — " + e.message);
+  }
+}
+
+async function createNote(){
+  if(isPlaceholder){ showToast("Add your Firebase config first"); return; }
+  try{
+    const ref = await addDoc(collection(db, "notes"), {
+      uid: currentUser.uid,
+      title: "",
+      body: "",
+      tags: [],
+      color: COLORS[0],
+      pinned: false,
+      archived: false,
+      trashed: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    activeFilter = "active";
+    setActiveFilterUI();
+    openNote(ref.id);
+    $("titleInput").focus();
+  }catch(e){
+    console.error(e);
+    showToast("Couldn't create note — " + e.message);
+  }
+}
+
+async function toggleField(field){
+  if(!activeNoteId) return;
+  const n = notes.find(x => x.id === activeNoteId);
+  try{
+    await updateDoc(doc(db, "notes", activeNoteId), { [field]: !n[field], updatedAt: serverTimestamp() });
+    showToast(field === "pinned" ? (!n[field] ? "Pinned" : "Unpinned") : (!n[field] ? "Archived" : "Restored from archive"));
+  }catch(e){ showToast("Couldn't update note"); }
+}
+
+async function trashActiveNote(){
+  if(!activeNoteId) return;
+  const n = notes.find(x => x.id === activeNoteId);
+  if(n.trashed){
+    if(!confirm("Permanently delete this note? This can't be undone.")) return;
+    try{ await deleteDoc(doc(db, "notes", activeNoteId)); showToast("Note permanently deleted"); closeEditor(); }
+    catch(e){ showToast("Couldn't delete note"); }
+  } else {
+    try{ await updateDoc(doc(db, "notes", activeNoteId), { trashed: true, updatedAt: serverTimestamp() }); showToast("Moved to trash"); closeEditor(); }
+    catch(e){ showToast("Couldn't move to trash"); }
+  }
+}
+
+function exportActiveNote(){
+  const n = notes.find(x => x.id === activeNoteId);
+  if(!n) return;
+  const md = `# ${n.title || "Untitled note"}\n\n${n.body || ""}\n`;
+  const blob = new Blob([md], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(n.title || "untitled-note").replace(/[^\w\-]+/g,"-").toLowerCase()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("Exported as Markdown");
+}
+
+function setActiveFilterUI(){
+  document.querySelectorAll(".filter-chip").forEach(c => c.classList.toggle("active", c.dataset.filter === activeFilter));
+  renderList();
+}
+
+/* ---------------- Events ---------------- */
+$("newNoteBtn").addEventListener("click", createNote);
+$("titleInput").addEventListener("input", scheduleSave);
+$("bodyInput").addEventListener("input", () => { updateWordCount(); scheduleSave(); });
+$("searchInput").addEventListener("input", renderList);
+$("pinBtn").addEventListener("click", () => toggleField("pinned"));
+$("archiveBtn").addEventListener("click", () => toggleField("archived"));
+$("deleteBtn").addEventListener("click", trashActiveNote);
+$("exportBtn").addEventListener("click", exportActiveNote);
+$("menuToggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+
+$("tagInput").addEventListener("keydown", (e) => {
+  if(e.key === "Enter" && $("tagInput").value.trim()){
+    e.preventDefault();
+    currentTags.push($("tagInput").value.trim());
+    $("tagInput").value = "";
+    renderTags();
+    scheduleSave();
+  }
+});
+
+document.querySelectorAll(".filter-chip").forEach(chip => {
+  chip.addEventListener("click", () => { activeFilter = chip.dataset.filter; setActiveFilterUI(); });
+});
+
+$("themeToggle").addEventListener("click", () => {
+  const body = document.body;
+  const next = body.getAttribute("data-theme") === "day" ? "night" : "day";
+  body.setAttribute("data-theme", next);
+  $("themeToggle").textContent = next === "day" ? "☾" : "☀";
+});
+
+document.addEventListener("keydown", (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if(mod && e.key.toLowerCase() === "n"){ e.preventDefault(); createNote(); }
+  if(mod && e.key.toLowerCase() === "k"){ e.preventDefault(); $("searchInput").focus(); }
+  if(mod && e.key.toLowerCase() === "s"){ e.preventDefault(); saveActiveNote(); }
+  if(e.key === "Escape"){ $("authOverlay").classList.remove("open"); }
+});
+
+/* ---------------- Auth modal ---------------- */
+let authMode = "signup";
+$("accountBtn").addEventListener("click", () => {
+  if(currentUser && !currentUser.isAnonymous){
+    if(confirm("Sign out of " + currentUser.email + "?")){
+      signOut(auth);
+    }
+    return;
+  }
+  authMode = "signup";
+  renderAuthModal();
+  $("authOverlay").classList.add("open");
+});
+
+function renderAuthModal(){
+  $("authTitle").textContent = authMode === "signup" ? "Sync your notes" : "Sign in";
+  $("authSub").textContent = authMode === "signup" ? "Add an email so your notes follow you to any device." : "Sign in to access your synced notes.";
+  $("authSubmit").textContent = authMode === "signup" ? "Create account" : "Sign in";
+  $("switchMode").innerHTML = authMode === "signup"
+    ? `Already have an account? <a id="switchLink">Sign in</a>`
+    : `Need an account? <a id="switchLink">Create one</a>`;
+  $("authErr").textContent = "";
+  document.getElementById("switchLink").addEventListener("click", () => {
+    authMode = authMode === "signup" ? "signin" : "signup";
+    renderAuthModal();
+  });
+}
+
+$("authSubmit").addEventListener("click", async () => {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  $("authErr").textContent = "";
+  if(!email || password.length < 6){
+    $("authErr").textContent = "Enter a valid email and a password of at least 6 characters.";
+    return;
+  }
+  try{
+    if(authMode === "signup"){
+      if(currentUser && currentUser.isAnonymous){
+        const cred = EmailAuthProvider.credential(email, password);
+        await linkWithCredential(currentUser, cred);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      showToast("Account created — notes are now synced to this email");
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+      showToast("Signed in");
+    }
+    $("authOverlay").classList.remove("open");
+    updateAccountBtn();
+  }catch(e){
+    $("authErr").textContent = e.message.replace("Firebase: ", "");
+  }
+});
+
+$("authOverlay").addEventListener("click", (e) => { if(e.target === $("authOverlay")) $("authOverlay").classList.remove("open"); });
+
+boot();
+</script>
+</body>
+</html>
