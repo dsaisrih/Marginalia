@@ -136,11 +136,17 @@
   .note-card.pinned .pin-dot{ display:block; }
   .note-card h4{ margin:0 0 4px; font-family:'Fraunces',serif; font-size:15px; font-weight:600; color:var(--ink); }
   .note-card p{ margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.4; max-height:34px; overflow:hidden; }
-  .note-card .meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
-  .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); }
-  .note-card .custom-date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); }
-  .note-card .tags{ display:flex; gap:4px; flex-wrap:wrap; }
-  .note-card .tag-pill{ font-size:9.5px; padding:1px 6px; border-radius:8px; background:var(--paper-alt); color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+  .note-card .meta{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px; gap:8px; flex-wrap:wrap; }
+  .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); white-space:nowrap; }
+  .note-card .custom-date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); white-space:nowrap; }
+  .note-card .custom-date-prev{ color:var(--ink-faint); text-decoration:line-through; text-decoration-color:var(--ink-faint); opacity:.75; }
+  .note-card .no-date-symbol{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); }
+  .note-card .tags{ display:flex; gap:5px; flex-wrap:wrap; }
+  .note-card .tag-pill{
+    font-size:10px; padding:2px 8px; border-radius:9px; font-family:'IBM Plex Mono',monospace;
+    background:var(--verdigris); color:var(--paper-card); border:1px solid var(--verdigris-dark);
+    font-weight:500; letter-spacing:.01em; line-height:1.5;
+  }
   .empty-list{ padding:40px 16px; text-align:center; color:var(--ink-faint); font-size:12.5px; }
 
   .sidebar-footer{
@@ -177,11 +183,11 @@
   }
   #titleInput::placeholder{ color:var(--ink-faint); }
   .tag-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-  .tag-pill-edit{ display:flex; align-items:center; gap:5px; background:var(--paper-alt); padding:3px 8px 3px 10px; border-radius:12px; font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); }
-  .tag-pill-edit button{ background:none; border:none; color:var(--ink-faint); font-size:13px; line-height:1; }
+  .tag-pill-edit{ display:flex; align-items:center; gap:5px; background:var(--verdigris); color:var(--paper-card); padding:3px 8px 3px 10px; border-radius:12px; font-size:11.5px; font-family:'IBM Plex Mono',monospace; border:1px solid var(--verdigris-dark); }
+  .tag-pill-edit button{ background:none; border:none; color:var(--paper-card); opacity:.8; font-size:13px; line-height:1; }
   #tagInput{ border:none; background:transparent; outline:none; font-size:12px; color:var(--ink-soft); min-width:110px; font-family:'IBM Plex Mono',monospace; }
 
-  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; }
+  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
   .date-row label{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; letter-spacing:.03em; display:flex; align-items:center; gap:6px; }
   #dateInput{
     border:1px solid var(--rule); background:var(--paper-card); color:var(--ink-soft); outline:none;
@@ -192,6 +198,8 @@
     background:none; border:none; color:var(--ink-faint); font-size:12px; text-decoration:underline; padding:0;
   }
   .clear-date-btn:hover{ color:var(--danger); }
+  .prev-date-hint{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); }
+  .prev-date-hint strong{ color:var(--brass); font-weight:600; text-decoration:none; }
 
   .ruled{
     background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--rule) 32px);
@@ -398,6 +406,7 @@ service cloud.firestore {
               <input type="date" id="dateInput" />
             </label>
             <button class="clear-date-btn" id="clearDateBtn" type="button">clear</button>
+            <span class="prev-date-hint" id="prevDateHint" style="display:none;"></span>
           </div>
           <textarea id="bodyInput" class="ruled" placeholder="Begin writing…"></textarea>
         </div>
@@ -618,6 +627,17 @@ function matchesFilter(n){
   return !n.trashed && !n.archived;
 }
 
+function buildDateLabel(n){
+  if(n.customDate){
+    const prev = n.previousDate && n.previousDate !== n.customDate
+      ? `<span class="custom-date-prev">${escapeHtml(fmtCustomDate(n.previousDate))}</span> → `
+      : "";
+    return `<span class="custom-date">${prev}${escapeHtml(fmtCustomDate(n.customDate))}</span>`;
+  }
+  // No custom date set (or cleared) — no text, just a small symbol
+  return `<span class="no-date-symbol" title="No date set">—</span>`;
+}
+
 function renderList(){
   const term = $("searchInput").value.trim().toLowerCase();
   let list = notes.filter(matchesFilter);
@@ -640,15 +660,16 @@ function renderList(){
     const card = document.createElement("div");
     card.className = "note-card" + (n.pinned ? " pinned" : "") + (n.id === activeNoteId ? " selected" : "");
     card.style.borderTopColor = n.color || COLORS[0];
-    const dateLabel = n.customDate
-      ? `<span class="custom-date">${escapeHtml(fmtCustomDate(n.customDate))}</span>`
-      : `<time>${fmtDate(n.updatedAt)}</time>`;
+    const dateLabel = buildDateLabel(n);
+    const tagsHtml = (n.tags||[]).length
+      ? (n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")
+      : "";
     card.innerHTML = `
       <div class="pin-dot"></div>
       <h4>${escapeHtml(n.title || "Untitled note")}</h4>
       <p>${escapeHtml((n.body||"").slice(0,140)) || "No additional text"}</p>
       <div class="meta">
-        <div class="tags">${(n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")}</div>
+        <div class="tags">${tagsHtml}</div>
         ${dateLabel}
       </div>`;
     card.addEventListener("click", () => openNote(n.id));
@@ -663,6 +684,7 @@ function escapeHtml(s){
 /* ---------------- Editor ---------------- */
 let currentTags = [];
 let pendingDate = "";
+let pendingPreviousDate = "";
 
 function openNote(id){
   const n = notes.find(x => x.id === id);
@@ -677,7 +699,9 @@ function openNote(id){
   currentTags = [...(n.tags || [])];
   renderTags();
   pendingDate = n.customDate || "";
+  pendingPreviousDate = n.previousDate || "";
   $("dateInput").value = pendingDate;
+  renderPrevDateHint();
   pendingColor = n.color || COLORS[0];
   renderSwatches();
   $("pinBtn").innerHTML = n.pinned ? "★ Pinned" : "☆ Pin";
@@ -725,6 +749,17 @@ function renderTags(){
   });
 }
 
+function renderPrevDateHint(){
+  const hint = $("prevDateHint");
+  if(pendingPreviousDate && pendingPreviousDate !== pendingDate){
+    hint.style.display = "inline";
+    hint.innerHTML = `was <strong>${escapeHtml(fmtCustomDate(pendingPreviousDate))}</strong>`;
+  } else {
+    hint.style.display = "none";
+    hint.innerHTML = "";
+  }
+}
+
 function updateWordCount(){
   const words = $("bodyInput").value.trim().split(/\s+/).filter(Boolean).length;
   $("wordCount").textContent = `${words} word${words===1?"":"s"}`;
@@ -753,6 +788,7 @@ async function saveActiveNote(){
       tags: currentTags,
       color: pendingColor,
       customDate: pendingDate || null,
+      previousDate: pendingPreviousDate || null,
       updatedAt: serverTimestamp()
     });
     setSaveState("saved");
@@ -773,6 +809,7 @@ async function createNote(){
       tags: [],
       color: COLORS[0],
       customDate: null,
+      previousDate: null,
       pinned: false,
       archived: false,
       trashed: false,
@@ -854,13 +891,28 @@ $("tagInput").addEventListener("keydown", (e) => {
 });
 
 $("dateInput").addEventListener("change", () => {
-  pendingDate = $("dateInput").value;
+  const newVal = $("dateInput").value;
+  if(!newVal){
+    // picker was cleared via native UI — treat same as Clear button
+    pendingDate = "";
+    pendingPreviousDate = "";
+  } else if(pendingDate && newVal !== pendingDate){
+    // a date was already set and a different date was just picked —
+    // keep the old one as the "previous" date alongside the new one
+    pendingPreviousDate = pendingDate;
+    pendingDate = newVal;
+  } else {
+    pendingDate = newVal;
+  }
+  renderPrevDateHint();
   scheduleSave();
 });
 
 $("clearDateBtn").addEventListener("click", () => {
   pendingDate = "";
+  pendingPreviousDate = "";
   $("dateInput").value = "";
+  renderPrevDateHint();
   scheduleSave();
 });
 
