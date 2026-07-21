@@ -283,14 +283,18 @@
       Firebase console for that project.
     </p>
     <pre>const firebaseConfig = {
- apiKey: "AIzaSyBLjaf7iB6YiOIB09TixFdCpGVM15vw-jY",
+  apiKey: "AIzaSyBLjaf7iB6YiOIB09TixFdCpGVM15vw-jY",
   authDomain: "marginalia-e5cdb.firebaseapp.com",
   projectId: "marginalia-e5cdb",
   storageBucket: "marginalia-e5cdb.firebasestorage.app",
   messagingSenderId: "496809574575",
   appId: "1:496809574575:web:0a697d38f93b67e6bf145a",
   measurementId: "G-GL7KPHGF8C"
-};</pre>
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);</pre>
     <p style="font-size:12.5px; color:var(--ink-soft);">Recommended Firestore rules (Console → Firestore → Rules):</p>
     <pre>rules_version = '2';
 service cloud.firestore {
