@@ -658,7 +658,6 @@ function renderList(){
     const card = document.createElement("div");
     card.className = "note-card" + (n.pinned ? " pinned" : "") + (n.id === activeNoteId ? " selected" : "");
     card.style.borderTopColor = n.color || COLORS[0];
-    const dateLabel = buildDateLabel(n);
     const tagsHtml = (n.tags||[]).length
       ? (n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")
       : "";
@@ -668,7 +667,6 @@ function renderList(){
       <p>${escapeHtml((n.body||"").slice(0,140))}</p>
       <div class="meta">
         <div class="tags">${tagsHtml}</div>
-        ${dateLabel}
       </div>`;
     card.addEventListener("click", () => openNote(n.id));
     container.appendChild(card);
