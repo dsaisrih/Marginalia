@@ -282,19 +282,16 @@
       Then enable <strong>Firestore Database</strong> and <strong>Authentication → Anonymous + Email/Password</strong> in the
       Firebase console for that project.
     </p>
+    <p style="font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Example only — for reference. Editing this text does nothing.</p>
     <pre>const firebaseConfig = {
-  apiKey: "AIzaSyBLjaf7iB6YiOIB09TixFdCpGVM15vw-jY",
-  authDomain: "marginalia-e5cdb.firebaseapp.com",
-  projectId: "marginalia-e5cdb",
-  storageBucket: "marginalia-e5cdb.firebasestorage.app",
-  messagingSenderId: "496809574575",
-  appId: "1:496809574575:web:0a697d38f93b67e6bf145a",
-  measurementId: "G-GL7KPHGF8C"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);</pre>
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "...",
+  appId: "..."
+};</pre>
+    <p style="font-size:11.5px; color:var(--ink-soft); background:var(--paper-alt); padding:8px 10px; border-radius:4px;">👉 The real, working <code>firebaseConfig</code> lives near the bottom of the file, inside the <code>&lt;script type="module"&gt;</code> section — search for <code>PASTE YOUR OWN FIREBASE CONFIG BELOW</code> to jump straight to it.</p>
     <p style="font-size:12.5px; color:var(--ink-soft);">Recommended Firestore rules (Console → Firestore → Rules):</p>
     <pre>rules_version = '2';
 service cloud.firestore {
@@ -441,6 +438,20 @@ service cloud.firestore {
 
 <div class="toast" id="toast"></div>
 
+<div class="modal-overlay" id="deniedOverlay">
+  <div class="modal" style="text-align:center;">
+    <div class="seal" style="width:56px;height:56px;margin:0 auto 14px;">
+      <svg viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Marginalia seal">
+        <circle cx="340" cy="200" r="128" fill="#3C6E5E" stroke="#8C4536" stroke-width="6"/>
+        <path d="M295,155 L295,245 M295,155 L340,208 L385,155 M385,155 L385,245" fill="none" stroke="#F1EDE3" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h3 style="color:var(--danger);">Not your ledger</h3>
+    <p class="sub" style="margin-bottom:20px;">Access denied — this note doesn't belong to your account.</p>
+    <button class="btn-primary" id="deniedClose" style="background:var(--danger);">Close</button>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -455,12 +466,12 @@ import {
 
 /* ============ 1. PASTE YOUR OWN FIREBASE CONFIG BELOW ============ */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBLjaf7iB6YiOIB09TixFdCpGVM15vw-jY",
+  authDomain: "marginalia-e5cdb.firebaseapp.com",
+  projectId: "marginalia-e5cdb",
+  storageBucket: "marginalia-e5cdb.firebasestorage.app",
+  messagingSenderId: "496809574575",
+  appId: "1:496809574575:web:0a697d38f93b67e6bf145a"
 };
 /* =================================================================== */
 
@@ -483,6 +494,14 @@ function showToast(msg){
   t.classList.add("show");
   clearTimeout(t._timer);
   t._timer = setTimeout(()=> t.classList.remove("show"), 2200);
+}
+
+function showAccessDenied(){
+  $("deniedOverlay").classList.add("open");
+}
+
+function isPermissionError(e){
+  return e && (e.code === "permission-denied" || /permission/i.test(e.message||""));
 }
 
 function fmtDate(ts){
@@ -551,7 +570,8 @@ function listenToNotes(){
     }
   }, (err) => {
     console.error(err);
-    showToast("Couldn't load notes — check Firestore rules");
+    if(isPermissionError(err)) showAccessDenied();
+    else showToast("Couldn't load notes — check Firestore rules");
   });
 }
 
@@ -696,7 +716,8 @@ async function saveActiveNote(){
     setSaveState("saved");
   }catch(e){
     console.error(e);
-    showToast("Couldn't save — " + e.message);
+    if(isPermissionError(e)) showAccessDenied();
+    else showToast("Couldn't save — " + e.message);
   }
 }
 
@@ -721,7 +742,8 @@ async function createNote(){
     $("titleInput").focus();
   }catch(e){
     console.error(e);
-    showToast("Couldn't create note — " + e.message);
+    if(isPermissionError(e)) showAccessDenied();
+    else showToast("Couldn't create note — " + e.message);
   }
 }
 
@@ -731,7 +753,7 @@ async function toggleField(field){
   try{
     await updateDoc(doc(db, "notes", activeNoteId), { [field]: !n[field], updatedAt: serverTimestamp() });
     showToast(field === "pinned" ? (!n[field] ? "Pinned" : "Unpinned") : (!n[field] ? "Archived" : "Restored from archive"));
-  }catch(e){ showToast("Couldn't update note"); }
+  }catch(e){ if(isPermissionError(e)) showAccessDenied(); else showToast("Couldn't update note"); }
 }
 
 async function trashActiveNote(){
@@ -740,10 +762,10 @@ async function trashActiveNote(){
   if(n.trashed){
     if(!confirm("Permanently delete this note? This can't be undone.")) return;
     try{ await deleteDoc(doc(db, "notes", activeNoteId)); showToast("Note permanently deleted"); closeEditor(); }
-    catch(e){ showToast("Couldn't delete note"); }
+    catch(e){ if(isPermissionError(e)) showAccessDenied(); else showToast("Couldn't delete note"); }
   } else {
     try{ await updateDoc(doc(db, "notes", activeNoteId), { trashed: true, updatedAt: serverTimestamp() }); showToast("Moved to trash"); closeEditor(); }
-    catch(e){ showToast("Couldn't move to trash"); }
+    catch(e){ if(isPermissionError(e)) showAccessDenied(); else showToast("Couldn't move to trash"); }
   }
 }
 
@@ -803,12 +825,17 @@ document.addEventListener("keydown", (e) => {
   if(mod && e.key.toLowerCase() === "n"){ e.preventDefault(); createNote(); }
   if(mod && e.key.toLowerCase() === "k"){ e.preventDefault(); $("searchInput").focus(); }
   if(mod && e.key.toLowerCase() === "s"){ e.preventDefault(); saveActiveNote(); }
-  if(e.key === "Escape"){ $("authOverlay").classList.remove("open"); }
+  if(e.key === "Escape"){ $("authOverlay").classList.remove("open"); $("deniedOverlay").classList.remove("open"); }
 });
 
 /* ---------------- Auth modal ---------------- */
 let authMode = "signup";
 $("accountBtn").addEventListener("click", () => {
+  if(isPlaceholder){
+    showToast("Add your real Firebase config first — see the setup screen");
+    $("setup").style.display = "flex";
+    return;
+  }
   if(currentUser && !currentUser.isAnonymous){
     if(confirm("Sign out of " + currentUser.email + "?")){
       signOut(auth);
@@ -835,6 +862,10 @@ function renderAuthModal(){
 }
 
 $("authSubmit").addEventListener("click", async () => {
+  if(isPlaceholder || !auth){
+    $("authErr").textContent = "Firebase isn't connected yet — add your config to the file first.";
+    return;
+  }
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value;
   $("authErr").textContent = "";
@@ -863,6 +894,9 @@ $("authSubmit").addEventListener("click", async () => {
 });
 
 $("authOverlay").addEventListener("click", (e) => { if(e.target === $("authOverlay")) $("authOverlay").classList.remove("open"); });
+
+$("deniedClose").addEventListener("click", () => $("deniedOverlay").classList.remove("open"));
+$("deniedOverlay").addEventListener("click", (e) => { if(e.target === $("deniedOverlay")) $("deniedOverlay").classList.remove("open"); });
 
 boot();
 </script>
