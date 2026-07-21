@@ -138,6 +138,7 @@
   .note-card p{ margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.4; max-height:34px; overflow:hidden; }
   .note-card .meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
   .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); }
+  .note-card .custom-date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); }
   .note-card .tags{ display:flex; gap:4px; flex-wrap:wrap; }
   .note-card .tag-pill{ font-size:9.5px; padding:1px 6px; border-radius:8px; background:var(--paper-alt); color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
   .empty-list{ padding:40px 16px; text-align:center; color:var(--ink-faint); font-size:12.5px; }
@@ -175,10 +176,22 @@
     font-family:'Fraunces',serif; font-size:32px; font-weight:600; margin-bottom:6px;
   }
   #titleInput::placeholder{ color:var(--ink-faint); }
-  .tag-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
+  .tag-row{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
   .tag-pill-edit{ display:flex; align-items:center; gap:5px; background:var(--paper-alt); padding:3px 8px 3px 10px; border-radius:12px; font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); }
   .tag-pill-edit button{ background:none; border:none; color:var(--ink-faint); font-size:13px; line-height:1; }
   #tagInput{ border:none; background:transparent; outline:none; font-size:12px; color:var(--ink-soft); min-width:110px; font-family:'IBM Plex Mono',monospace; }
+
+  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; }
+  .date-row label{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; letter-spacing:.03em; display:flex; align-items:center; gap:6px; }
+  #dateInput{
+    border:1px solid var(--rule); background:var(--paper-card); color:var(--ink-soft); outline:none;
+    font-size:12.5px; font-family:'IBM Plex Mono',monospace; padding:5px 8px; border-radius:4px;
+  }
+  #dateInput:focus{ border-color:var(--verdigris); color:var(--ink); }
+  .clear-date-btn{
+    background:none; border:none; color:var(--ink-faint); font-size:12px; text-decoration:underline; padding:0;
+  }
+  .clear-date-btn:hover{ color:var(--danger); }
 
   .ruled{
     background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--rule) 32px);
@@ -380,6 +393,12 @@ service cloud.firestore {
           <div class="tag-row" id="tagRow">
             <input id="tagInput" placeholder="+ add tag, press Enter" />
           </div>
+          <div class="date-row">
+            <label for="dateInput">📅 Date
+              <input type="date" id="dateInput" />
+            </label>
+            <button class="clear-date-btn" id="clearDateBtn" type="button">clear</button>
+          </div>
           <textarea id="bodyInput" class="ruled" placeholder="Begin writing…"></textarea>
         </div>
       </div>
@@ -517,6 +536,14 @@ function fmtDate(ts){
   return d.toLocaleDateString([], {month:'short', day:'numeric'});
 }
 
+function fmtCustomDate(dateStr){
+  if(!dateStr) return "";
+  // dateStr is "YYYY-MM-DD" from <input type="date">; parse as local, not UTC
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString([], {year:'numeric', month:'short', day:'numeric'});
+}
+
 /* ---------------- Boot ---------------- */
 function boot(){
   if(isPlaceholder){
@@ -613,13 +640,16 @@ function renderList(){
     const card = document.createElement("div");
     card.className = "note-card" + (n.pinned ? " pinned" : "") + (n.id === activeNoteId ? " selected" : "");
     card.style.borderTopColor = n.color || COLORS[0];
+    const dateLabel = n.customDate
+      ? `<span class="custom-date">${escapeHtml(fmtCustomDate(n.customDate))}</span>`
+      : `<time>${fmtDate(n.updatedAt)}</time>`;
     card.innerHTML = `
       <div class="pin-dot"></div>
       <h4>${escapeHtml(n.title || "Untitled note")}</h4>
       <p>${escapeHtml((n.body||"").slice(0,140)) || "No additional text"}</p>
       <div class="meta">
         <div class="tags">${(n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")}</div>
-        <time>${fmtDate(n.updatedAt)}</time>
+        ${dateLabel}
       </div>`;
     card.addEventListener("click", () => openNote(n.id));
     container.appendChild(card);
@@ -632,6 +662,7 @@ function escapeHtml(s){
 
 /* ---------------- Editor ---------------- */
 let currentTags = [];
+let pendingDate = "";
 
 function openNote(id){
   const n = notes.find(x => x.id === id);
@@ -645,6 +676,8 @@ function openNote(id){
   $("bodyInput").value = n.body || "";
   currentTags = [...(n.tags || [])];
   renderTags();
+  pendingDate = n.customDate || "";
+  $("dateInput").value = pendingDate;
   pendingColor = n.color || COLORS[0];
   renderSwatches();
   $("pinBtn").innerHTML = n.pinned ? "★ Pinned" : "☆ Pin";
@@ -719,6 +752,7 @@ async function saveActiveNote(){
       body: $("bodyInput").value,
       tags: currentTags,
       color: pendingColor,
+      customDate: pendingDate || null,
       updatedAt: serverTimestamp()
     });
     setSaveState("saved");
@@ -738,6 +772,7 @@ async function createNote(){
       body: "",
       tags: [],
       color: COLORS[0],
+      customDate: null,
       pinned: false,
       archived: false,
       trashed: false,
@@ -780,7 +815,8 @@ async function trashActiveNote(){
 function exportActiveNote(){
   const n = notes.find(x => x.id === activeNoteId);
   if(!n) return;
-  const md = `# ${n.title || "Untitled note"}\n\n${n.body || ""}\n`;
+  const dateLine = n.customDate ? `*${fmtCustomDate(n.customDate)}*\n\n` : "";
+  const md = `# ${n.title || "Untitled note"}\n\n${dateLine}${n.body || ""}\n`;
   const blob = new Blob([md], { type: "text/markdown" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -815,6 +851,17 @@ $("tagInput").addEventListener("keydown", (e) => {
     renderTags();
     scheduleSave();
   }
+});
+
+$("dateInput").addEventListener("change", () => {
+  pendingDate = $("dateInput").value;
+  scheduleSave();
+});
+
+$("clearDateBtn").addEventListener("click", () => {
+  pendingDate = "";
+  $("dateInput").value = "";
+  scheduleSave();
 });
 
 document.querySelectorAll(".filter-chip").forEach(chip => {
