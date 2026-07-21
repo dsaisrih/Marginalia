@@ -426,6 +426,10 @@ service cloud.firestore {
     <h3 id="authTitle">Sync your notes</h3>
     <p class="sub" id="authSub">Add an email so your notes follow you to any device.</p>
     <div class="err" id="authErr"></div>
+    <div id="nameField">
+      <label>Name</label>
+      <input id="authName" type="text" placeholder="How should we address you?" />
+    </div>
     <label>Email</label>
     <input id="authEmail" type="email" placeholder="you@example.com" />
     <label>Password</label>
@@ -457,7 +461,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, signInAnonymously, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  linkWithCredential, EmailAuthProvider, signOut
+  linkWithCredential, EmailAuthProvider, signOut, updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
@@ -548,7 +552,11 @@ function renderEmptyDemo(){
 
 function updateAccountBtn(){
   if(!currentUser) return;
-  $("accountBtn").textContent = currentUser.isAnonymous ? "Guest — sync notes" : (currentUser.email || "Account");
+  if(currentUser.isAnonymous){
+    $("accountBtn").textContent = "Guest — sync notes";
+  } else {
+    $("accountBtn").textContent = currentUser.displayName || (currentUser.email ? currentUser.email.split("@")[0] : "Account");
+  }
 }
 
 /* ---------------- Firestore listener ---------------- */
@@ -837,7 +845,16 @@ $("accountBtn").addEventListener("click", () => {
     return;
   }
   if(currentUser && !currentUser.isAnonymous){
-    if(confirm("Sign out of " + currentUser.email + "?")){
+    if(!currentUser.displayName){
+      const name = prompt("Add a name to show instead of your email:", "");
+      if(name && name.trim()){
+        updateProfile(auth.currentUser, { displayName: name.trim() })
+          .then(() => { updateAccountBtn(); showToast("Name saved"); })
+          .catch(() => showToast("Couldn't save name"));
+        return;
+      }
+    }
+    if(confirm("Sign out of " + (currentUser.displayName || currentUser.email) + "?")){
       signOut(auth);
     }
     return;
@@ -855,6 +872,7 @@ function renderAuthModal(){
     ? `Already have an account? <a id="switchLink">Sign in</a>`
     : `Need an account? <a id="switchLink">Create one</a>`;
   $("authErr").textContent = "";
+  $("nameField").style.display = authMode === "signup" ? "block" : "none";
   document.getElementById("switchLink").addEventListener("click", () => {
     authMode = authMode === "signup" ? "signin" : "signup";
     renderAuthModal();
@@ -875,11 +893,15 @@ $("authSubmit").addEventListener("click", async () => {
   }
   try{
     if(authMode === "signup"){
+      const name = $("authName").value.trim();
       if(currentUser && currentUser.isAnonymous){
         const cred = EmailAuthProvider.credential(email, password);
         await linkWithCredential(currentUser, cred);
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
+      }
+      if(name && auth.currentUser){
+        await updateProfile(auth.currentUser, { displayName: name });
       }
       showToast("Account created — notes are now synced to this email");
     } else {
