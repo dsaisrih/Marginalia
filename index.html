@@ -137,10 +137,9 @@
   .note-card h4{ margin:0 0 4px; font-family:'Fraunces',serif; font-size:15px; font-weight:600; color:var(--ink); }
   .note-card p{ margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.4; max-height:34px; overflow:hidden; }
   .note-card .meta{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px; gap:8px; flex-wrap:wrap; }
-  .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); white-space:nowrap; }
-  .note-card .custom-date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); white-space:nowrap; }
-  .note-card .custom-date-prev{ color:var(--ink-faint); text-decoration:line-through; text-decoration-color:var(--ink-faint); opacity:.75; }
-  .note-card .no-date-symbol{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); }
+  .note-card .meta time{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint); white-space:nowrap; flex-shrink:0; }
+  .note-card .custom-date{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brass); white-space:nowrap; flex-shrink:0; }
+  .note-card .no-date-symbol{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); flex-shrink:0; }
   .note-card .tags{ display:flex; gap:5px; flex-wrap:wrap; }
   .note-card .tag-pill{
     font-size:10px; padding:2px 8px; border-radius:9px; font-family:'IBM Plex Mono',monospace;
@@ -628,13 +627,12 @@ function matchesFilter(n){
 }
 
 function buildDateLabel(n){
-  if(n.customDate){
-    const prev = n.previousDate && n.previousDate !== n.customDate
-      ? `<span class="custom-date-prev">${escapeHtml(fmtCustomDate(n.previousDate))}</span> → `
-      : "";
-    return `<span class="custom-date">${prev}${escapeHtml(fmtCustomDate(n.customDate))}</span>`;
+  // Just plainly print the day they were last writing in this note —
+  // no combo, no truncation.
+  const dateStr = n.lastEntryDate || n.customDate;
+  if(dateStr){
+    return `<span class="custom-date">${escapeHtml(fmtCustomDate(dateStr))}</span>`;
   }
-  // No custom date set (or cleared) — no text, just a small symbol
   return `<span class="no-date-symbol" title="No date set">—</span>`;
 }
 
@@ -667,7 +665,7 @@ function renderList(){
     card.innerHTML = `
       <div class="pin-dot"></div>
       <h4>${escapeHtml(n.title || "Untitled note")}</h4>
-      <p>${escapeHtml((n.body||"").slice(0,140)) || "No additional text"}</p>
+      <p>${escapeHtml((n.body||"").slice(0,140))}</p>
       <div class="meta">
         <div class="tags">${tagsHtml}</div>
         ${dateLabel}
