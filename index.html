@@ -685,6 +685,39 @@ function escapeHtml(s){
 let currentTags = [];
 let pendingDate = "";
 let pendingPreviousDate = "";
+let pendingLastEntryDate = "";
+let bodyDateStampDone = false;
+
+function todayKey(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function todayLabel(){
+  return new Date().toLocaleDateString([], {year:'numeric', month:'short', day:'numeric'});
+}
+
+/* Stamps today's date inline in the note body — as the first line for a
+   brand-new note, or above new writing when the note is opened on a
+   later day than it was last written in. Fires once per open, the
+   moment the person starts writing (focuses the body). */
+function maybeInsertDateStamp(){
+  if(!activeNoteId || bodyDateStampDone) return;
+  const today = todayKey();
+  if(pendingLastEntryDate === today){ bodyDateStampDone = true; return; }
+  const ta = $("bodyInput");
+  const heading = todayLabel();
+  if(ta.value.trim() === ""){
+    ta.value = heading + "\n\n";
+  } else {
+    const sep = ta.value.endsWith("\n\n") ? "" : (ta.value.endsWith("\n") ? "\n" : "\n\n");
+    ta.value = ta.value + sep + heading + "\n\n";
+  }
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  pendingLastEntryDate = today;
+  bodyDateStampDone = true;
+  updateWordCount();
+  scheduleSave();
+}
 
 function openNote(id){
   const n = notes.find(x => x.id === id);
@@ -700,6 +733,8 @@ function openNote(id){
   renderTags();
   pendingDate = n.customDate || "";
   pendingPreviousDate = n.previousDate || "";
+  pendingLastEntryDate = n.lastEntryDate || "";
+  bodyDateStampDone = false;
   $("dateInput").value = pendingDate;
   renderPrevDateHint();
   pendingColor = n.color || COLORS[0];
@@ -789,6 +824,7 @@ async function saveActiveNote(){
       color: pendingColor,
       customDate: pendingDate || null,
       previousDate: pendingPreviousDate || null,
+      lastEntryDate: pendingLastEntryDate || null,
       updatedAt: serverTimestamp()
     });
     setSaveState("saved");
@@ -810,6 +846,7 @@ async function createNote(){
       color: COLORS[0],
       customDate: null,
       previousDate: null,
+      lastEntryDate: null,
       pinned: false,
       archived: false,
       trashed: false,
@@ -872,6 +909,7 @@ function setActiveFilterUI(){
 /* ---------------- Events ---------------- */
 $("newNoteBtn").addEventListener("click", createNote);
 $("titleInput").addEventListener("input", scheduleSave);
+$("bodyInput").addEventListener("focus", maybeInsertDateStamp);
 $("bodyInput").addEventListener("input", () => { updateWordCount(); scheduleSave(); });
 $("searchInput").addEventListener("input", renderList);
 $("pinBtn").addEventListener("click", () => toggleField("pinned"));
