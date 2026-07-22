@@ -210,11 +210,18 @@
     border-radius:2px;
   }
   #bodyInput{
-    width:100%; min-height:52vh; border:none; outline:none; background:transparent; resize:vertical;
+    width:100%; min-height:52vh; border:none; outline:none; background:transparent;
     color:var(--ink); font-size:15.5px; line-height:32px; font-family:'IBM Plex Sans', sans-serif;
-    padding-top:2px;
+    padding-top:2px; white-space:pre-wrap; word-wrap:break-word;
   }
-  #bodyInput::placeholder{ color:var(--ink-faint); }
+  #bodyInput:empty:before{ content: attr(data-placeholder); color:var(--ink-faint); }
+  #bodyInput .date-heading{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:15.5px;
+    color:var(--ink);
+    letter-spacing:.01em;
+  }
 
   .editor-bottom{
     display:flex; justify-content:space-between; align-items:center; padding:10px 28px;
@@ -414,7 +421,7 @@ service cloud.firestore {
             </div>
             <div class="date-history" id="prevDateHint" style="display:none;"></div>
           </div>
-          <textarea id="bodyInput" class="ruled" placeholder="Begin writing…"></textarea>
+          <div id="bodyInput" class="ruled" contenteditable="true" data-placeholder="Begin writing…"></div>
         </div>
       </div>
 
@@ -559,6 +566,47 @@ function fmtCustomDate(dateStr){
   return dt.toLocaleDateString([], {year:'numeric', month:'short', day:'numeric'});
 }
 
+/* ---------- HTML body helpers (contenteditable date-stamped notes) ---------- */
+function stripHtml(html){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  return tmp.textContent || '';
+}
+
+function looksLikeHtml(str){
+  return /<[a-z][\s\S]*>/i.test(str || "");
+}
+
+function htmlBodyToMarkdown(html){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  const lines = [];
+  tmp.childNodes.forEach(node => {
+    if(node.nodeType === Node.TEXT_NODE){
+      if(node.textContent.trim() !== "") lines.push(node.textContent);
+    } else if(node.nodeType === Node.ELEMENT_NODE){
+      if(node.tagName === 'BR'){
+        lines.push('');
+      } else if(node.classList && node.classList.contains('date-heading')){
+        lines.push('**' + node.textContent + '**');
+      } else {
+        lines.push(node.textContent);
+      }
+    }
+  });
+  return lines.join('\n');
+}
+
+function placeCursorAtEnd(el){
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 /* ---------------- Boot ---------------- */
 function boot(){
   if(isPlaceholder){
@@ -640,7 +688,7 @@ function renderList(){
   if(term){
     list = list.filter(n =>
       (n.title||"").toLowerCase().includes(term) ||
-      (n.body||"").toLowerCase().includes(term) ||
+      stripHtml(n.body||"").toLowerCase().includes(term) ||
       (n.tags||[]).some(t => t.toLowerCase().includes(term))
     );
   }
@@ -662,7 +710,7 @@ function renderList(){
     card.innerHTML = `
       <div class="pin-dot"></div>
       <h4>${escapeHtml(n.title || "Untitled note")}</h4>
-      <p>${escapeHtml((n.body||"").slice(0,140))}</p>
+      <p>${escapeHtml(stripHtml(n.body||"").slice(0,140))}</p>
       <div class="meta">
         <div class="tags">${tagsHtml}</div>
       </div>`;
@@ -693,20 +741,28 @@ function todayLabel(){
 /* Stamps today's date inline in the note body — as the first line for a
    brand-new note, or above new writing when the note is opened on a
    later day than it was last written in. Fires once per open, the
-   moment the person starts writing (focuses the body). */
+   moment the person starts writing (focuses the body). The date is
+   rendered as a bold serif heading element, not plain text. */
 function maybeInsertDateStamp(){
   if(!activeNoteId || bodyDateStampDone) return;
   const today = todayKey();
   if(pendingLastEntryDate === today){ bodyDateStampDone = true; return; }
-  const ta = $("bodyInput");
+  const bodyEl = $("bodyInput");
   const heading = todayLabel();
-  if(ta.value.trim() === ""){
-    ta.value = heading + "\n\n";
-  } else {
-    const sep = ta.value.endsWith("\n\n") ? "" : (ta.value.endsWith("\n") ? "\n" : "\n\n");
-    ta.value = ta.value + sep + heading + "\n\n";
+
+  const headingEl = document.createElement("div");
+  headingEl.className = "date-heading";
+  headingEl.textContent = heading;
+  const spacerEl = document.createElement("div");
+  spacerEl.appendChild(document.createElement("br"));
+
+  if(bodyEl.textContent.trim() === ""){
+    bodyEl.innerHTML = "";
   }
-  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  bodyEl.appendChild(headingEl);
+  bodyEl.appendChild(spacerEl);
+
+  placeCursorAtEnd(bodyEl);
   pendingLastEntryDate = today;
   bodyDateStampDone = true;
   updateWordCount();
@@ -722,7 +778,13 @@ function openNote(id){
   $("editorBody").style.display = "block";
   $("editorBottom").style.display = "flex";
   $("titleInput").value = n.title || "";
-  $("bodyInput").value = n.body || "";
+  const bodyEl = $("bodyInput");
+  const bodyVal = n.body || "";
+  if(looksLikeHtml(bodyVal)){
+    bodyEl.innerHTML = bodyVal;
+  } else {
+    bodyEl.textContent = bodyVal;
+  }
   currentTags = [...(n.tags || [])];
   renderTags();
   pendingDate = n.customDate || "";
@@ -791,7 +853,7 @@ function renderDateHistory(){
 }
 
 function updateWordCount(){
-  const words = $("bodyInput").value.trim().split(/\s+/).filter(Boolean).length;
+  const words = $("bodyInput").textContent.trim().split(/\s+/).filter(Boolean).length;
   $("wordCount").textContent = `${words} word${words===1?"":"s"}`;
 }
 
@@ -814,7 +876,7 @@ async function saveActiveNote(){
   try{
     await updateDoc(doc(db, "notes", activeNoteId), {
       title: $("titleInput").value,
-      body: $("bodyInput").value,
+      body: $("bodyInput").innerHTML,
       tags: currentTags,
       color: pendingColor,
       customDate: pendingDate || null,
@@ -885,7 +947,8 @@ function exportActiveNote(){
   const n = notes.find(x => x.id === activeNoteId);
   if(!n) return;
   const dateLine = n.customDate ? `*${fmtCustomDate(n.customDate)}*\n\n` : "";
-  const md = `# ${n.title || "Untitled note"}\n\n${dateLine}${n.body || ""}\n`;
+  const bodyMd = htmlBodyToMarkdown(n.body || "");
+  const md = `# ${n.title || "Untitled note"}\n\n${dateLine}${bodyMd}\n`;
   const blob = new Blob([md], { type: "text/markdown" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
