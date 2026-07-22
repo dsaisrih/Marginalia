@@ -659,20 +659,15 @@ function renderList(){
     const tagsHtml = (n.tags||[]).length
       ? (n.tags||[]).slice(0,3).map(t=>`<span class="tag-pill">${escapeHtml(t)}</span>`).join("")
       : "";
-   card.innerHTML = `
-  <div class="pin-dot"></div>
-
-  <h4>${escapeHtml(n.title || "Untitled note")}</h4>
-
-  <div class="meta">
-      <span class="custom-date">
-          ${n.customDate ? fmtCustomDate(n.customDate) : ""}
-      </span>
-
-      <div class="tags">
-          ${tagsHtml}
-      </div>
-  </div>`;
+    card.innerHTML = `
+      <div class="pin-dot"></div>
+      <h4>${escapeHtml(n.title || "Untitled note")}</h4>
+      <p>${escapeHtml((n.body||"").slice(0,140))}</p>
+      <div class="meta">
+        <div class="tags">${tagsHtml}</div>
+      </div>`;
+    card.addEventListener("click", () => openNote(n.id));
+    container.appendChild(card);
   });
 }
 
@@ -699,7 +694,24 @@ function todayLabel(){
    brand-new note, or above new writing when the note is opened on a
    later day than it was last written in. Fires once per open, the
    moment the person starts writing (focuses the body). */
-
+function maybeInsertDateStamp(){
+  if(!activeNoteId || bodyDateStampDone) return;
+  const today = todayKey();
+  if(pendingLastEntryDate === today){ bodyDateStampDone = true; return; }
+  const ta = $("bodyInput");
+  const heading = todayLabel();
+  if(ta.value.trim() === ""){
+    ta.value = heading + "\n\n";
+  } else {
+    const sep = ta.value.endsWith("\n\n") ? "" : (ta.value.endsWith("\n") ? "\n" : "\n\n");
+    ta.value = ta.value + sep + heading + "\n\n";
+  }
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  pendingLastEntryDate = today;
+  bodyDateStampDone = true;
+  updateWordCount();
+  scheduleSave();
+}
 
 function openNote(id){
   const n = notes.find(x => x.id === id);
@@ -892,6 +904,7 @@ function setActiveFilterUI(){
 /* ---------------- Events ---------------- */
 $("newNoteBtn").addEventListener("click", createNote);
 $("titleInput").addEventListener("input", scheduleSave);
+$("bodyInput").addEventListener("focus", maybeInsertDateStamp);
 $("bodyInput").addEventListener("input", () => { updateWordCount(); scheduleSave(); });
 $("searchInput").addEventListener("input", renderList);
 $("pinBtn").addEventListener("click", () => toggleField("pinned"));
