@@ -186,7 +186,8 @@
   .tag-pill-edit button{ background:none; border:none; color:var(--paper-card); opacity:.8; font-size:13px; line-height:1; }
   #tagInput{ border:none; background:transparent; outline:none; font-size:12px; color:var(--ink-soft); min-width:110px; font-family:'IBM Plex Mono',monospace; }
 
-  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; flex-wrap:wrap; justify-content:space-between; }
+  .date-row .date-left{ display:flex; align-items:center; gap:8px; }
   .date-row label{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; letter-spacing:.03em; display:flex; align-items:center; gap:6px; }
   #dateInput{
     border:1px solid var(--rule); background:var(--paper-card); color:var(--ink-soft); outline:none;
@@ -197,8 +198,12 @@
     background:none; border:none; color:var(--ink-faint); font-size:12px; text-decoration:underline; padding:0;
   }
   .clear-date-btn:hover{ color:var(--danger); }
-  .prev-date-hint{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); }
-  .prev-date-hint strong{ color:var(--brass); font-weight:600; text-decoration:none; }
+  .date-history{ display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .date-chip{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:.01em;
+    padding:4px 10px; border-radius:14px; background:var(--brass); color:#2a1c07;
+    box-shadow: 0 1px 3px rgba(169,128,61,0.35);
+  }
 
   .ruled{
     background-image: repeating-linear-gradient(var(--paper) 0px, var(--paper) 31px, var(--rule) 32px);
@@ -401,11 +406,13 @@ service cloud.firestore {
             <input id="tagInput" placeholder="+ add tag, press Enter" />
           </div>
           <div class="date-row">
-            <label for="dateInput">📅 Date
-              <input type="date" id="dateInput" />
-            </label>
-            <button class="clear-date-btn" id="clearDateBtn" type="button">clear</button>
-            <span class="prev-date-hint" id="prevDateHint" style="display:none;"></span>
+            <div class="date-left">
+              <label for="dateInput">📅 Date
+                <input type="date" id="dateInput" />
+              </label>
+              <button class="clear-date-btn" id="clearDateBtn" type="button">clear</button>
+            </div>
+            <div class="date-history" id="prevDateHint" style="display:none;"></div>
           </div>
           <textarea id="bodyInput" class="ruled" placeholder="Begin writing…"></textarea>
         </div>
@@ -626,15 +633,6 @@ function matchesFilter(n){
   return !n.trashed && !n.archived;
 }
 
-function buildDateLabel(n){
-  // Just plainly print the day they were last writing in this note —
-  // no combo, no truncation.
-  const dateStr = n.lastEntryDate || n.customDate;
-  if(dateStr){
-    return `<span class="custom-date">${escapeHtml(fmtCustomDate(dateStr))}</span>`;
-  }
-  return `<span class="no-date-symbol" title="No date set">—</span>`;
-}
 
 function renderList(){
   const term = $("searchInput").value.trim().toLowerCase();
@@ -680,7 +678,7 @@ function escapeHtml(s){
 /* ---------------- Editor ---------------- */
 let currentTags = [];
 let pendingDate = "";
-let pendingPreviousDate = "";
+let pendingDateHistory = [];
 let pendingLastEntryDate = "";
 let bodyDateStampDone = false;
 
@@ -728,11 +726,11 @@ function openNote(id){
   currentTags = [...(n.tags || [])];
   renderTags();
   pendingDate = n.customDate || "";
-  pendingPreviousDate = n.previousDate || "";
+  pendingDateHistory = Array.isArray(n.dateHistory) ? [...n.dateHistory] : [];
   pendingLastEntryDate = n.lastEntryDate || "";
   bodyDateStampDone = false;
   $("dateInput").value = pendingDate;
-  renderPrevDateHint();
+  renderDateHistory();
   pendingColor = n.color || COLORS[0];
   renderSwatches();
   $("pinBtn").innerHTML = n.pinned ? "★ Pinned" : "☆ Pin";
@@ -780,15 +778,16 @@ function renderTags(){
   });
 }
 
-function renderPrevDateHint(){
-  const hint = $("prevDateHint");
-  if(pendingPreviousDate && pendingPreviousDate !== pendingDate){
-    hint.style.display = "inline";
-    hint.innerHTML = `was <strong>${escapeHtml(fmtCustomDate(pendingPreviousDate))}</strong>`;
-  } else {
-    hint.style.display = "none";
-    hint.innerHTML = "";
+function renderDateHistory(){
+  const wrap = $("prevDateHint");
+  const past = pendingDateHistory.filter(d => d && d !== pendingDate);
+  if(past.length === 0){
+    wrap.style.display = "none";
+    wrap.innerHTML = "";
+    return;
   }
+  wrap.style.display = "inline-flex";
+  wrap.innerHTML = past.map(d => `<span class="date-chip">${escapeHtml(fmtCustomDate(d))}</span>`).join("");
 }
 
 function updateWordCount(){
@@ -819,7 +818,7 @@ async function saveActiveNote(){
       tags: currentTags,
       color: pendingColor,
       customDate: pendingDate || null,
-      previousDate: pendingPreviousDate || null,
+      dateHistory: pendingDateHistory,
       lastEntryDate: pendingLastEntryDate || null,
       updatedAt: serverTimestamp()
     });
@@ -841,7 +840,7 @@ async function createNote(){
       tags: [],
       color: COLORS[0],
       customDate: null,
-      previousDate: null,
+      dateHistory: [],
       lastEntryDate: null,
       pinned: false,
       archived: false,
@@ -929,24 +928,24 @@ $("dateInput").addEventListener("change", () => {
   if(!newVal){
     // picker was cleared via native UI — treat same as Clear button
     pendingDate = "";
-    pendingPreviousDate = "";
+    pendingDateHistory = [];
   } else if(pendingDate && newVal !== pendingDate){
     // a date was already set and a different date was just picked —
-    // keep the old one as the "previous" date alongside the new one
-    pendingPreviousDate = pendingDate;
+    // keep the old one in the history so it stays visible, highlighted
+    if(!pendingDateHistory.includes(pendingDate)) pendingDateHistory.push(pendingDate);
     pendingDate = newVal;
   } else {
     pendingDate = newVal;
   }
-  renderPrevDateHint();
+  renderDateHistory();
   scheduleSave();
 });
 
 $("clearDateBtn").addEventListener("click", () => {
   pendingDate = "";
-  pendingPreviousDate = "";
+  pendingDateHistory = [];
   $("dateInput").value = "";
-  renderPrevDateHint();
+  renderDateHistory();
   scheduleSave();
 });
 
